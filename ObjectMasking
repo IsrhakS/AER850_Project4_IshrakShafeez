@@ -1,0 +1,40 @@
+import cv2
+import numpy as np
+
+# Load image
+img = cv2.imread("motherboard_image.JPEG")
+original = img.copy()
+
+# Convert to HSV (better for color-based masking)
+hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+# PCB is gold + black + gray
+# We detect the **non-black** area as PCB
+lower = np.array([0, 0, 40])      # ignore very dark colors (background)
+upper = np.array([180, 255, 255])
+
+mask = cv2.inRange(hsv, lower, upper)
+
+# Clean mask using morphological operations
+kernel = np.ones((15, 15), np.uint8)
+mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+# Find the largest connected component (this WILL be the motherboard)
+num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])  # skip background
+
+pcb_mask = np.where(labels == largest, 255, 0).astype("uint8")
+
+# Extract PCB
+extracted = cv2.bitwise_and(original, original, mask=pcb_mask)
+
+# Edge detection for report
+edges = cv2.Canny(cv2.cvtColor(original, cv2.COLOR_BGR2GRAY), 80, 180)
+
+# Save results
+cv2.imwrite("mask_output.png", pcb_mask)
+cv2.imwrite("extracted_output.png", extracted)
+cv2.imwrite("edges_output.png", edges)
+
+print("ALL FIXED ✔")
